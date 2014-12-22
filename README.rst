@@ -23,6 +23,7 @@ Features
 * Block DNS queries by application and domain, or return configurable IP addresses
 * Tray icon with activity indicators
 * Log window to inspect recent activity
+* Optionally resolve names using the Tor network
 
 Usage
 -----
