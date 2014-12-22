@@ -155,6 +155,23 @@ def identify_caller(address):
     return fetch_process_name(pid)
 
 
+def resolve_over_tor(name):
+    """Resolve using a local Tor instance"""
+    # Send Tor SOCKS RESOLVE request.
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    socks_addr = (cfg['tor_socks_ipaddr'], cfg['tor_socks_port'])
+    s.connect(socks_addr)
+    buf = struct.pack('>BBHI', 4, 0xF0, 0, 1) + '\x00%s\x00' % name
+    s.send(buf)
+    v, stat, port, ipaddr = struct.unpack('>BBH4s', s.recv(1024))
+    ipaddr = socket.inet_ntoa(ipaddr)
+
+    if stat == 90:
+        return ipaddr
+
+    log.debug("Failed resolution over Tor")
+
+
 class DNSServer(DatagramServer):
 
     def handle(self, querydata, address):
@@ -252,7 +269,13 @@ class DNSServer(DatagramServer):
 
         if action == 'accept':
             # forward query, use caching
-            self._forward_query_to_resolver(querydata, src)
+            if cfg['use_tor']:
+                ip_addr = resolve_over_tor(query.qd[0].name)
+                if ip_addr:
+                    self._return_ipaddr(query, ip_addr, src)
+
+            else:
+                self._forward_query_to_resolver(querydata, src)
 
         elif action == 'nxdomain':
             self._return_nxdomain(query, src)

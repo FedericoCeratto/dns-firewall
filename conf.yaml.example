@@ -12,6 +12,12 @@ socket_timeout: 20
 udp_dns_servers: ['208.67.222.222:53', '208.67.220.220:53']
 udp_mode: true
 
+# Use Tor to perform DNS resolution
+# If set, udp_dns_servers and udp_mode will be ignored
+use_tor: false
+tor_socks_ipaddr: '127.0.0.1'
+tor_socks_port: 9050
+
 # Filtering rules
 filtering:
 
