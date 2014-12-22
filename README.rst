@@ -17,6 +17,12 @@ DNS firewall
 A proxy to inspect and mingle locally generated DNS queries.
 Optional tray icon an Gtk interface.
 
+Features
+--------
+
+* Block DNS queries by application and domain, or return configurable IP addresses
+* Tray icon with activity indicators
+* Log window to inspect recent activity
 
 Usage
 -----
@@ -35,6 +41,8 @@ and configure authbind::
 Add --tray to enable the tray icon and Gtk interface.
 
 Create conf.yaml from conf.yaml.example
+
+Update your /etc/resolv.conf with "nameserver 127.0.0.1"
 
 Development status
 ------------------
