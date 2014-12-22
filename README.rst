@@ -1,16 +1,21 @@
 
-.. image:: https://pypip.in/download/dns-firewall/badge.png
+
+.. image:: https://pypip.in/download/dns-firewall/badge.svg
     :target: https://pypi.python.org/pypi/dns-firewall/
     :alt: Downloads
 
-.. image:: https://pypip.in/version/dns-firewall/badge.png
+.. image:: https://pypip.in/version/dns-firewall/badge.svg
     :target: https://pypi.python.org/pypi/dns-firewall/
     :alt: Latest Version
 
-.. image:: https://pypip.in/license/dns-firewall/badge.png
+.. image:: https://pypip.in/license/dns-firewall/badge.svg
     :target: https://pypi.python.org/pypi/dns-firewall/
     :alt: License
 
+.. image:: https://pypip.in/implementation/dns-firewall/badge.svg
+    :target: https://pypi.python.org/pypi/dns-firewall/
+    :alt: Supported Python implementations
+    
 DNS firewall
 ============
 
