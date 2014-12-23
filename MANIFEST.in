@@ -3,3 +3,4 @@ include setup.py
 include README.rst
 include LICENSE
 include dns_firewall/data/*.png
+include conf.yaml.example
