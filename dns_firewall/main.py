@@ -16,6 +16,7 @@ from setproctitle import setproctitle
 import argparse
 import dpkt.dns
 import logging
+import os.path
 import psutil
 import socket
 import struct
@@ -310,19 +311,22 @@ def start_tray_icon():
     return tray_icon
 
 
+def parse_args():
+    conf_fn = os.path.expanduser('~/.config/dns-firewall/conf.yaml')
+    parser = argparse.ArgumentParser(description='TCP DNS Proxy')
+    parser.add_argument('-c', dest='config_fname', type=argparse.FileType('r'),
+                        default=conf_fn, help='config file')
+    parser.add_argument('--tray', help='Enable tray icon', action='store_true',
+                        default=False)
+    args = parser.parse_args()
+    return args
+
 def main():
     global cfg
 
     setproctitle('dnsfirewall')
-
+    args = parse_args()
     setup_logging()
-
-    parser = argparse.ArgumentParser(description='TCP DNS Proxy')
-    parser.add_argument(dest='config_fname', type=argparse.FileType('r'),
-                        help='config file')
-    parser.add_argument('--tray', help='Enable tray icon', action='store_true',
-                        default=False)
-    args = parser.parse_args()
 
     cfg = yaml.load(args.config_fname)
 

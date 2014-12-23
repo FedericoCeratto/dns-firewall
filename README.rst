@@ -46,18 +46,18 @@ Features
 Usage
 -----
 
-Create conf.yaml from conf.yaml.example
+Create ~/.config/dns-firewall/conf.yaml from conf.yaml.example
 
 Binding to UDP port 53 is required. You can run the process as root or install
 and configure authbind::
 
    sudo apt-get install authbind
    sudo touch /etc/authbind/byport/53
-   authbind --depth 2 ./dns_firewall/main.py conf.yaml
+   authbind --depth 2 dns-firewall
 
    # or
 
-   sudo ./dns_firewall/main.py conf.yaml
+   sudo dns-firewall
 
 Add --tray to enable the tray icon and Gtk interface. Left-click on the tray icon to display the log window.
 
