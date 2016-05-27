@@ -24,6 +24,17 @@ import yaml
 
 cfg = {}
 
+rule_defaults = dict(
+   action="drop",        # Can be accept, nxdomain, return, drop
+   dnscrypt="false",     # Use DNSCrypt
+   processname="*",      # Match process name
+   tcp="false",          # Use TCP instead of UDP
+   tor="false",          # Resolve over Tor
+   username="*",         # Match username
+   warn="false",         # Log match
+   zone="*",             # Match zone
+)
+
 log = logging.getLogger(__name__)
 
 color_map = dict(
@@ -31,6 +42,7 @@ color_map = dict(
     drop=31,  # red
     nxdomain=31,  # red
     unmanaged=30,
+    dnscrypt=43,
     default=33,  # yellow, used by "return"
 )
 
@@ -44,9 +56,11 @@ def setup_logging():
     log.addHandler(ch)
 
 
-def color(action):
+def color(action, msg=None):
     col = color_map.get(action, color_map['default'])
-    return "\033[0;%dm%s\033[1;0m" % (col, action)
+    if msg is None:
+        msg = action
+    return "\033[0;%dm%s\033[1;0m" % (col, msg)
 
 
 def query_resolver(server, port, querydata):
@@ -173,11 +187,18 @@ def resolve_over_tor(name):
     log.debug("Failed resolution over Tor")
 
 
+class Rule(object):
+    def __init__(self, n, **kw):
+        self.__dict__ = rule_defaults.copy()
+        self.__dict__.update(**kw)
+        self.n = n
+        self.repr_orig = ' '.join("%s: %s" % (k, kw[k]) for k in sorted(kw))
+
+
 class DNSServer(DatagramServer):
 
     def handle(self, querydata, address):
-        client_program_name = identify_caller(address)
-        self._handle_query(client_program_name, querydata, address)
+        self._handle_query(querydata, address)
 
     def _forward_query_to_resolver(self, querydata, src):
         """Forward DNS query to resolvers"""
@@ -196,11 +217,14 @@ class DNSServer(DatagramServer):
             self.socket.sendto(response, src)
             return
 
-    def _decide_action(self, client_program_name, query):
-        """Decide action"""
+    def _decide_action(self, query, src_ipaddr):
+        """Decide action
+
+        :returns: rule
+        """
         # FIXME: clean this code up
         if query.qr == dpkt.dns.DNS_Q and len(query.qd) == 1 \
-            and len(query.an) == 0 and len(query.ns) == 0:
+                and len(query.an) == 0 and len(query.ns) == 0:
             q = query.qd[0]
         else:
             return 'transparent'
@@ -214,24 +238,43 @@ class DNSServer(DatagramServer):
         if q.cls != dpkt.dns.DNS_IN:
             return 'transparent'
 
-        rules = cfg['filtering']
-        filtering_rules = rules.get(client_program_name, []) + rules['general']
+        processname = None
+        username = None
 
-        for domain_filter, action in filtering_rules:
-            if not fnmatch(q_domain, domain_filter):
+        for rule in self.filtering_rules:
+            if not fnmatch(q_domain, rule.zone):
                 continue
+            if rule.processname is not '*':
+                processname = processname or identify_caller(src_ipaddr)
+                if not fnmatch(processname, rule.processname):
+                    continue
+
+            if rule.username is not '*':
+                username = username or 'FIXME'
+                if username != rule.username:
+                    continue
 
             if self.tray_icon:
                 self.tray_icon.add_log_message(
-                    client_program_name,
+                    processname,
                     q_domain,
-                    domain_filter,
-                    action
+                    rule.zone,
+                    rule.action
                 )
-            log.debug("%r %r is matching %r -> %s" % (client_program_name,
-                q_domain, domain_filter, color(action)))
-            return action
 
+            say = log.warn if rule.warn else log.debug
+            say("%s %r %r is matching rule %d %s" % (
+                color(rule.action, '●'),
+                processname,
+                q_domain,
+                rule.n,
+                rule.repr_orig
+            ))
+
+            return rule
+
+        # Return default drop
+        return Rule()
 
     def _return_nxdomain(self, query, src):
         """Return NXDOMAIN"""
@@ -262,15 +305,15 @@ class DNSServer(DatagramServer):
 
         self.socket.sendto(ans.pack(), src)
 
-    def _handle_query(self, client_program_name, querydata, src):
+    def _handle_query(self, querydata, src):
         """Handle incoming query, return response
         """
         query = dpkt.dns.DNS(querydata)
-        action = self._decide_action(client_program_name, query)
+        rule = self._decide_action(query, src)
 
-        if action == 'accept':
+        if rule.action == 'accept':
             # forward query, use caching
-            if cfg['use_tor']:
+            if rule.tor:
                 ip_addr = resolve_over_tor(query.qd[0].name)
                 if ip_addr:
                     self._return_ipaddr(query, ip_addr, src)
@@ -278,24 +321,24 @@ class DNSServer(DatagramServer):
             else:
                 self._forward_query_to_resolver(querydata, src)
 
-        elif action == 'nxdomain':
+        elif rule.action == 'nxdomain':
             self._return_nxdomain(query, src)
 
-        elif action.startswith('return '):
+        elif rule.action.startswith('return '):
             # return a fixed IP address
-            ip_addr = action[7:].strip()
+            ip_addr = rule.action[7:].strip()
             self._return_ipaddr(query, ip_addr, src)
 
-        elif action == 'drop':
+        elif rule.action == 'drop':
             # simply drop the query
             return
 
 
-
-
-
 def start_dns_server(cfg, tray_icon):
     server = DNSServer('%s:%s' % (cfg["host"], cfg["port"]))
+    server.filtering_rules = [Rule(n, **r) for n, r in
+                              enumerate(cfg['filtering'])]
+
     if cfg['enable_lru_cache']:
         # FIXME: implement caching
         server.lru_cache = {}
@@ -321,6 +364,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def main():
     global cfg
 
@@ -335,7 +379,6 @@ def main():
     else:
         tray_icon = None
 
-    log.info("DNS servers: %s", ' '.join(cfg['udp_dns_servers']))
     log.info("Query timeout: %f", cfg['socket_timeout'])
     log.info("Enable cache: %r", cfg['enable_lru_cache'])
 

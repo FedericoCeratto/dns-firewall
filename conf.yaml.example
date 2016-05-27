@@ -9,32 +9,77 @@ port: 53
 socket_timeout: 20
 
 # DNS resolvers to forward queries to
-udp_dns_servers: ['208.67.222.222:53', '208.67.220.220:53']
-udp_mode: true
+resolvers: ['208.67.222.222:53', '208.67.220.220:53']
 
 # Use Tor to perform DNS resolution
-# If set, udp_dns_servers and udp_mode will be ignored
-use_tor: false
 tor_socks_ipaddr: '127.0.0.1'
 tor_socks_port: 9050
 
 # Filtering rules
+#
+# Like in netfilter, the rules are processed in sequence until a match is found.
+# The default values are:
+#
+#   action: drop        # Can be accept, nxdomain, return, drop
+#   dnscrypt: false     # Use DNSCrypt
+#   processname: *      # Match process name
+#   tcp: false          # Use TCP instead of UDP
+#   tor: false          # Resolve over Tor
+#   username: *         # Match username
+#   warn: false         # Log match
+#   zone: *             # Match zone
+
 filtering:
 
-  # general rules are used as a default
-  general:
   # drop all queries to drop.net
-  - [drop.net, drop]
+  - zone: drop.net
+    action: drop
 
-  # return nxdomain for nxdomain.net queries
-  - [nxdomain.net, nxdomain]
+  # resolve a domain using custom resolvers
+  - zone: custom_resolvers.net
+    action: accept
+    resolvers: ['208.67.222.222:53', '208.67.220.220:53']
+
+  # return nxdomain for nxdomain.net
+  - zone: nxdomain.net
+    action: nxdomain
+
+  # return nxdomain to netcat
+  - processname: nc
+    action: nxdomain
+
+  # return nxdomain to an user
+  - username: foo
+    action: nxdomain
 
   # return 127.0.0.1 for return1.net
-  - [return1.net, return 127.0.0.1]
+  - zone: return1.net
+    action: return 127.0.0.1
+
+  # resolve in TCP
+  - zone: tcp.net
+    action: accept
+    tcp: true
+
+  # resolve using dnscrypt
+  - zone: dnscrypt.net
+    dnscrypt: true
+    action: accept
+
+  # resolve using dnscrypt over Tor
+  - zone: dnscrypt_tor.net
+    dnscrypt: true
+    tor: true
+    action: accept
+
+  # resolve using Tor
+  - zone: tor.net
+    tor: true
+    action: accept
+
+  # forward every other request to the DNS resolvers, but warn
+  - action: accept
+    warn: true
 
   # forward every other request to the DNS resolvers
-  - ['*', accept]
-
-  # process-specific rules for queries generate by "dig"
-  dig:
-  - ['*', nxdomain]
+  - action: accept
